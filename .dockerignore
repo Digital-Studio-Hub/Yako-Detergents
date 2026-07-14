@@ -1,0 +1,10 @@
+node_modules
+.git
+.local
+.replit
+.env
+*.log
+mockup
+Assets
+*.docx
+*.pdf
