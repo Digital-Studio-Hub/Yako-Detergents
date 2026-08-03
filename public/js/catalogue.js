@@ -157,11 +157,10 @@
       p.priceFormatted != null
         ? `${currencySymbol(currency)}${p.priceFormatted}`
         : formatMoney(p.price, currency);
+    const initial = escapeHtml((p.name || "?").charAt(0).toUpperCase());
     const img = p.imageUrl
-      ? `<img src="${escapeHtml(p.imageUrl)}" alt="${escapeHtml(p.name)}" loading="lazy" width="400" height="400" />`
-      : `<div class="product-card__placeholder" aria-hidden="true"><span>${escapeHtml(
-          (p.name || "?").charAt(0).toUpperCase()
-        )}</span></div>`;
+      ? `<img src="${escapeHtml(p.imageUrl)}" alt="${escapeHtml(p.name)}" loading="lazy" width="400" height="400" data-initial="${initial}" onerror="window.__yakoImgFallback&&window.__yakoImgFallback(this)" />`
+      : `<div class="product-card__placeholder" aria-hidden="true"><span>${initial}</span></div>`;
     const badge = p.inStock
       ? ""
       : `<span class="product-badge product-badge--oos">Out of stock</span>`;
@@ -267,6 +266,18 @@
   if (els.retry) {
     els.retry.addEventListener("click", () => load());
   }
+
+  // Graceful fallback when Lekker image proxy is unavailable
+  window.__yakoImgFallback = function (img) {
+    if (!img || img.dataset.failed) return;
+    img.dataset.failed = "1";
+    const initial = img.getAttribute("data-initial") || "?";
+    const ph = document.createElement("div");
+    ph.className = "product-card__placeholder";
+    ph.setAttribute("aria-hidden", "true");
+    ph.innerHTML = `<span>${initial}</span>`;
+    img.replaceWith(ph);
+  };
 
   if (els.grid) {
     load();

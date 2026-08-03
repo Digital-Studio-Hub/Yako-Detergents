@@ -1,7 +1,12 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getFeed, submitContactToLekker, isConfigured } from "./lekker-connect.js";
+import {
+  getFeed,
+  submitContactToLekker,
+  isConfigured,
+  fetchProductImage,
+} from "./lekker-connect.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +46,39 @@ app.get("/api/feed", async (req, res) => {
       error: "Unable to load products from Lekker Network right now.",
       detail: process.env.NODE_ENV === "production" ? undefined : err.message,
     });
+  }
+});
+
+/**
+ * Product image proxy.
+ * Lekker feed returns private /objects/uploads/… URLs (401 in the browser).
+ * We rewrite those to this endpoint and stream bytes server-side.
+ * GET /api/product-image?path=objects/uploads/{uuid}
+ */
+app.get("/api/product-image", async (req, res) => {
+  if (!isConfigured()) {
+    return res.status(503).json({ error: "Lekker Connect is not configured." });
+  }
+  const objectPath = String(req.query.path || "").trim();
+  if (!objectPath) {
+    return res.status(400).json({ error: "Missing path" });
+  }
+  try {
+    const { buffer, contentType } = await fetchProductImage(objectPath);
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.send(buffer);
+  } catch (err) {
+    console.warn("[lekker-image]", objectPath, err.message);
+    const status = err.status && err.status >= 400 && err.status < 600 ? err.status : 502;
+    // Transparent 1x1 so the card still lays out; catalogue.js also has onerror fallback.
+    res.status(status).type("png").send(
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "base64"
+      )
+    );
   }
 });
 
